@@ -40,7 +40,7 @@ class OptParsing
     end
 
     def define_options(parser)
-      parser.banner = "Usage: file_check-local-stateless.rb [options]"
+      parser.banner = "Usage: #{$0} [options]"
       parser.separator ""
       parser.separator "Specific options:"
 
@@ -53,6 +53,11 @@ class OptParsing
       end
       parser.on_tail("-V", "--version", "Shows version number.") do
         puts Version
+        exit
+      end
+      parser.on_tail() do
+        puts "Empty options."
+        puts parser
         exit
       end
     end
@@ -68,7 +73,13 @@ class OptParsing
     @options = ScriptOptions.new
     @args = OptionParser.new do |parser|
       @options.define_options(parser)
-      parser.parse!(args)
+      begin
+        parser.parse!(args)
+      rescue OptionParser::ParseError => error
+        puts error
+        puts parser
+        exit 1
+      end
     end
     @options
   end

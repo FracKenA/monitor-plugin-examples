@@ -34,17 +34,23 @@ class OptParsing
     critical = arg
   end
 
+  def self.filepath(arg)
+    filepath = arg
+  end
+
   class ScriptOptions
     attr_accessor :verbose,
                   :delay,
                   :extension,
                   :record_separator,
                   :warning,
-                  :critical
+                  :critical,
+                  :filepath
 
 
     def initialize
       self.verbose = false
+      self.delay = 0
       self.warning = Hash.new
       self.critical = Hash.new
     end
@@ -58,6 +64,7 @@ class OptParsing
       exec_delay(parser)
       threshold_warning(parser)
       threshold_critical(parser)
+      set_filepath(parser)
 
       parser.separator "Common options:"
       parser.on_tail("-h", "--help", "Show usage information.") do
@@ -97,6 +104,12 @@ class OptParsing
         self.critical[:range_end] = range_end.to_i
       end
     end
+
+    def set_filepath(parser)
+      parser.on("-f", "--filepath FN", String, "Path to file.") do |f|
+        self.filepath = f
+      end
+    end
   end
 
   def parse_args(args)
@@ -126,3 +139,4 @@ puts "options is type #{options.class}"
 puts "options.delay: #{options.delay}"
 puts "options.warning: #{options.warning}"
 puts "options.critical: #{options.critical}"
+puts "options.filepath: #{options.filepath}"

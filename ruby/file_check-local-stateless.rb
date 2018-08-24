@@ -27,15 +27,12 @@ class OptParsing
   Version = '0.0.1'
 
   class ScriptOptions
-    attr_accessor :library,
-                  :verbose,
-                  :extension,
+    attr_accessor :verbose,
                   :delay,
-                  :record_separator,
-                  :list
+                  :extension,
+                  :record_separator
 
     def initialize
-      self.library = []
       self.verbose = false
     end
 
@@ -44,27 +41,36 @@ class OptParsing
       parser.separator ""
       parser.separator "Specific options:"
 
+      verbose_enable(parser)
       exec_delay(parser)
+      threshold_warning(parser)
 
       parser.separator "Common options:"
       parser.on_tail("-h", "--help", "Show usage information.") do
         puts parser
-        exit
+        exit 3
       end
       parser.on_tail("-V", "--version", "Shows version number.") do
         puts Version
-        exit
+        exit 3
       end
-      parser.on_tail() do
-        puts "Empty options."
-        puts parser
-        exit
+    end
+
+    def verbose_enable(parser)
+      parser.on("-v", "Enable more output.") do |v|
+        self.verbose = v
       end
     end
 
     def exec_delay(parser)
-      parser.on("--delay N", Integer, "Delays the execution of the check for X seconds.") do |n|
+      parser.on("-d N", "--delay N", Integer, "Delays the execution of the check for X seconds.") do |n|
         self.delay = n
+      end
+    end
+
+    def threshold_warning(parser)
+      parser.on("-w warn", "--warning warn", Array, "Warning thresholds.") do |w|
+        puts w
       end
     end
   end
@@ -78,7 +84,7 @@ class OptParsing
       rescue OptionParser::ParseError => error
         puts error
         puts parser
-        exit 1
+        exit 4
       end
     end
     @options

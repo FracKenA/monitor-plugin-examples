@@ -26,11 +26,17 @@ require 'pp'
 class OptParsing
   Version = '0.0.1'
 
+  def self.warning(arg)
+    warning = arg
+  end
+
   class ScriptOptions
     attr_accessor :verbose,
                   :delay,
                   :extension,
-                  :record_separator
+                  :record_separator,
+                  :warning
+
 
     def initialize
       self.verbose = false
@@ -70,7 +76,8 @@ class OptParsing
 
     def threshold_warning(parser)
       parser.on("-w warn", "--warning warn", Array, "Warning thresholds.") do |w|
-        puts w
+        #puts w
+        self.warning = w
       end
     end
   end

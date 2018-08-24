@@ -30,16 +30,23 @@ class OptParsing
     warning = arg
   end
 
+  def self.critical(arg)
+    critical = arg
+  end
+
   class ScriptOptions
     attr_accessor :verbose,
                   :delay,
                   :extension,
                   :record_separator,
-                  :warning
+                  :warning,
+                  :critical
 
 
     def initialize
       self.verbose = false
+      self.warning = Hash.new
+      self.critical = Hash.new
     end
 
     def define_options(parser)
@@ -50,6 +57,7 @@ class OptParsing
       verbose_enable(parser)
       exec_delay(parser)
       threshold_warning(parser)
+      threshold_critical(parser)
 
       parser.separator "Common options:"
       parser.on_tail("-h", "--help", "Show usage information.") do
@@ -75,9 +83,18 @@ class OptParsing
     end
 
     def threshold_warning(parser)
-      parser.on("-w warn", "--warning warn", Array, "Warning thresholds.") do |w|
-        #puts w
-        self.warning = w
+      parser.on("-w", "--warning WARN", String, "Warning thresholds.") do |w|
+        range_start, range_end = w.split(':')
+        self.warning[:range_start] = range_start.to_i
+        self.warning[:range_end] = range_end.to_i
+      end
+    end
+
+    def threshold_critical(parser)
+      parser.on("-c", "--critical CRIT", Array, "Critical thresholds.") do |c|
+        range_start, range_end = c
+        self.critical[:range_start] = range_start.to_i
+        self.critical[:range_end] = range_end.to_i
       end
     end
   end
@@ -105,3 +122,7 @@ options = file_check.parse_args(ARGV)
 pp options
 pp ARGV
 
+puts "options is type #{options.class}"
+puts "options.delay: #{options.delay}"
+puts "options.warning: #{options.warning}"
+puts "options.critical: #{options.critical}"

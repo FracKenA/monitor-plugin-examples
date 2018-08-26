@@ -22,6 +22,7 @@
 # Standard libs
 require 'optparse'
 require 'pp'
+require 'pathname'
 
 class OptParsing
   Version = '0.0.1'
@@ -77,6 +78,7 @@ class OptParsing
       end
     end
 
+    #TODO: Allow 'v' multiple times to increase the verbosity of the output.
     def verbose_enable(parser)
       parser.on("-v", "Enable more output.") do |v|
         self.verbose = v
@@ -107,7 +109,7 @@ class OptParsing
 
     def set_filepath(parser)
       parser.on("-f", "--filepath FN", String, "Path to file.") do |f|
-        self.filepath = f
+        self.filepath = File.absolute_path(f)
       end
     end
   end
@@ -130,13 +132,16 @@ class OptParsing
   attr_reader :parser, :options
 end
 
-file_check = OptParsing.new
-options = file_check.parse_args(ARGV)
-pp options
-pp ARGV
+optionparser = OptParsing.new
+options = optionparser.parse_args(ARGV)
 
-puts "options is type #{options.class}"
-puts "options.delay: #{options.delay}"
-puts "options.warning: #{options.warning}"
-puts "options.critical: #{options.critical}"
-puts "options.filepath: #{options.filepath}"
+if options.verbose
+  puts "Exec delay: #{options.delay}"
+  puts "Warning thresholds: #{options.warning}"
+  puts "Critical thresholds: #{options.critical}"
+  puts "Path to file: #{options.filepath}"
+  puts ''
+  pp options
+  puts "ARGV dump: #{ARGV}", ''
+end
+

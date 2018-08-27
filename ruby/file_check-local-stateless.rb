@@ -93,17 +93,35 @@ class OptParsing
 
     def threshold_warning(parser)
       parser.on("-w", "--warning WARN", String, "Warning thresholds.") do |w|
-        range_start, range_end = w.split(':')
+        if w.include? '@'
+          self.warning[:inclusive] = true
+          w = w.tr('@', '')
+        else
+          self.warning[:inclusive] = false
+        end
+
+        if w.include? ':'
+          range_start, range_end = w.split(':')
+        end
         self.warning[:range_start] = range_start.to_i
         self.warning[:range_end] = range_end.to_i
+        self.warning[:check] = true
       end
     end
 
     def threshold_critical(parser)
-      parser.on("-c", "--critical CRIT", Array, "Critical thresholds.") do |c|
-        range_start, range_end = c
+      parser.on("-c", "--critical CRIT", String, "Critical thresholds.") do |c|
+        if c.include '@'
+          self.critical[:inclusive] = true
+          c = c.tr('@', '')
+        else
+          self.critical[:inclusive] = false
+        end
+
+        range_start, range_end = c.split(':')
         self.critical[:range_start] = range_start.to_i
         self.critical[:range_end] = range_end.to_i
+        self.critical[:check] = true
       end
     end
 
@@ -123,13 +141,35 @@ class OptParsing
       rescue OptionParser::ParseError => error
         puts error
         puts parser
-        exit 4
+        exit 3
       end
     end
     @options
   end
 
   attr_reader :parser, :options
+end
+
+def check_service(options, data)
+  ret_val = 3
+  status = "UNKNOWN"
+  description = "Service is in an unknown state."
+
+  if data < options.warning[:range_start]
+    ret_val = 0
+    status = "OK"
+    description = "Everything is good."
+  elsif data >= options.warning[:range_start] && data < options.warning[:range_end]
+    ret_val = 1
+    status = "WARNING"
+    description = "Service is in a warning state."
+  elsif data >= options.critical[:range_start] && data < options.critical[:range_end]
+    ret_val = 2
+    status = "CRITICAL"
+    description = "Service is in a critical state."
+  end
+
+  return ret_val, status, description
 end
 
 optionparser = OptParsing.new
@@ -145,3 +185,23 @@ if options.verbose
   puts "ARGV dump: #{ARGV}", ''
 end
 
+file_obj = Pathname.new(options.filepath)
+
+if file_obj.directory?
+  puts "Passed file is a directory."
+  exit 3
+elsif !file_obj.exist?
+  puts "Passed file does not exist."
+  exit 3
+end
+
+data = file_obj.read
+data = data.to_i
+
+if options.verbose
+  puts "Data from file: #{data}"
+end
+
+ret_val, service_status, service_description = check_service(options, data)
+
+puts ret_val, service_status, service_description

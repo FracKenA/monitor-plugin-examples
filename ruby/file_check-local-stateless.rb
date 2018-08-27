@@ -93,6 +93,8 @@ class OptParsing
 
     def threshold_warning(parser)
       parser.on("-w", "--warning WARN", String, "Warning thresholds.") do |w|
+        self.warning[:string_orig] = w
+
         if w.include? '@'
           self.warning[:inclusive] = true
           w = w.tr('@', '')
@@ -102,16 +104,24 @@ class OptParsing
 
         if w.include? ':'
           range_start, range_end = w.split(':')
+          range_start = range_start.to_i
+          range_end = range_end.to_i
+        else
+          range_start = nil
+          range_end = w.to_i
         end
-        self.warning[:range_start] = range_start.to_i
-        self.warning[:range_end] = range_end.to_i
+
+        self.warning[:range_start] = range_start
+        self.warning[:range_end] = range_end
         self.warning[:check] = true
       end
     end
 
     def threshold_critical(parser)
       parser.on("-c", "--critical CRIT", String, "Critical thresholds.") do |c|
-        if c.include '@'
+        self.critical[:string_orig] = c
+
+        if c.include? '@'
           self.critical[:inclusive] = true
           c = c.tr('@', '')
         else
@@ -172,6 +182,8 @@ def check_service(options, data)
   return ret_val, status, description
 end
 
+ret_val = 3
+
 optionparser = OptParsing.new
 options = optionparser.parse_args(ARGV)
 
@@ -202,6 +214,13 @@ if options.verbose
   puts "Data from file: #{data}"
 end
 
+if options.delay
+  puts "Delaying for #{options.delay} seconds..."
+  sleep options.delay
+end
+
 ret_val, service_status, service_description = check_service(options, data)
 
-puts ret_val, service_status, service_description
+puts "#{service_status} - #{service_description} | 'output'=#{data};#{options.warning[:string_orig]};#{options.critical[:string_orig]}"
+
+exit ret_val

@@ -137,6 +137,7 @@ class OptParsing
 
     def set_filepath(parser)
       parser.on("-f", "--filepath FN", String, "Path to file.") do |f|
+        #TODO: Make mandatory
         self.filepath = File.absolute_path(f)
       end
     end
@@ -197,7 +198,12 @@ if options.verbose
   puts "ARGV dump: #{ARGV}", ''
 end
 
-file_obj = Pathname.new(options.filepath)
+begin
+  file_obj = Pathname.new(options.filepath)
+rescue TypeError => error
+  puts error
+  exit 4
+end
 
 if file_obj.directory?
   puts "Passed file is a directory."

@@ -39,6 +39,10 @@ class OptParsing
     filepath = arg
   end
 
+  def self.timeout(arg)
+    timeout = arg
+  end
+
   class ScriptOptions
     attr_accessor :verbose,
                   :delay,
@@ -46,14 +50,19 @@ class OptParsing
                   :record_separator,
                   :warning,
                   :critical,
-                  :filepath
-
+                  :filepath,
+                  :timeout
 
     def initialize
       self.verbose = false
       self.delay = 0
+      self.timeout = 10
       self.warning = Hash.new
+      self.warning[:check] = false
+      self.warning[:inclusive] = false
       self.critical = Hash.new
+      self.critical[:check] = false
+      self.critical[:inclusive] = false
     end
 
     def define_options(parser)
@@ -66,6 +75,7 @@ class OptParsing
       threshold_warning(parser)
       threshold_critical(parser)
       set_filepath(parser)
+      set_timeout(parser)
 
       parser.separator "Common options:"
       parser.on_tail("-h", "--help", "Show usage information.") do
@@ -91,6 +101,12 @@ class OptParsing
       end
     end
 
+    def set_timeout(parser)
+      parser.on("-t N", "--timeout N", Integer, "Sets the maximum execution time in seconds.") do |n|
+        self.timeout = n
+      end
+    end
+
     def threshold_warning(parser)
       parser.on("-w", "--warning WARN", String, "Warning thresholds.") do |w|
         self.warning[:string_orig] = w
@@ -98,16 +114,20 @@ class OptParsing
         if w.include? '@'
           self.warning[:inclusive] = true
           w = w.tr('@', '')
-        else
-          self.warning[:inclusive] = false
         end
 
         if w.include? ':'
           range_start, range_end = w.split(':')
-          range_start = range_start.to_i
-          range_end = range_end.to_i
+          if range_start == '~'
+            range_start = nil
+          else
+            range_start = range_start.to_i
+          end
+          if range_end != nil
+            range_end = range_end.to_i
+          end
         else
-          range_start = nil
+          range_start = 0
           range_end = w.to_i
         end
 
@@ -124,13 +144,25 @@ class OptParsing
         if c.include? '@'
           self.critical[:inclusive] = true
           c = c.tr('@', '')
-        else
-          self.critical[:inclusive] = false
         end
 
-        range_start, range_end = c.split(':')
-        self.critical[:range_start] = range_start.to_i
-        self.critical[:range_end] = range_end.to_i
+        if c.include? ':'
+          range_start, range_end = c.split(':')
+          if range_start == '~'
+            range_start = nil
+          else
+            range_start = range_start.to_i
+          end
+          if range_end != nil
+            range_end = range_end.to_i
+          end
+        else
+          range_start = 0
+          range_end = c.to_i
+        end
+
+        self.critical[:range_start] = range_start
+        self.critical[:range_end] = range_end
         self.critical[:check] = true
       end
     end
@@ -161,23 +193,49 @@ class OptParsing
   attr_reader :parser, :options
 end
 
-def check_service(options, data)
-  ret_val = 3
-  status = "UNKNOWN"
-  description = "Service is in an unknown state."
+def get_status(options, data)
+  ret_val = 0
+  status = "OK"
+  description = "Everything is good."
 
-  if data < options.warning[:range_start]
-    ret_val = 0
-    status = "OK"
-    description = "Everything is good."
-  elsif data >= options.warning[:range_start] && data < options.warning[:range_end]
-    ret_val = 1
-    status = "WARNING"
-    description = "Service is in a warning state."
-  elsif data >= options.critical[:range_start] && data < options.critical[:range_end]
-    ret_val = 2
-    status = "CRITICAL"
-    description = "Service is in a critical state."
+  if options.critical[:check] == true
+    if options.critical[:inclusive] == false
+      if data < options.critical[:range_start] ||
+          data > options.critical[:range_end]
+        ret_val = 2
+        status = "CRITICAL"
+        description = "Service is in a critical state."
+        return ret_val, status, description
+      end
+    elsif options.critical[:inclusive] == true
+      if data >= options.critical[:range_start] &&
+          data <= options.critical[:range_end]
+        ret_val = 2
+        status = "CRITICAL"
+        description = "Service is in a critical state."
+        return ret_val, status, description
+      end
+    end
+  end
+
+  if options.warning[:check] == true
+    if options.warning[:inclusive] == false
+      if data < options.warning[:range_start] ||
+          data > options.warning[:range_end]
+        ret_val = 1
+        status = "WARNING"
+        description = "Service is in a warning state."
+        return ret_val, status, description
+      end
+    elsif options.warning[:inclusive] == true
+      if data >= options.warning[:range_start] &&
+          data <= options.warning[:range_end]
+        ret_val = 1
+        status = "WARNING"
+        description = "Service is in a warning state."
+        return ret_val, status, description
+      end
+    end
   end
 
   return ret_val, status, description
@@ -198,18 +256,23 @@ if options.verbose
   puts "ARGV dump: #{ARGV}", ''
 end
 
+if options.warning[:check] == false && options.critical[:check] == false
+  puts "UNKNOWN - At least one range needs to be defined."
+  exit 3
+end
+
 begin
   file_obj = Pathname.new(options.filepath)
 rescue TypeError => error
-  puts error
-  exit 4
+  puts "UNKNOWN - #{error}"
+  exit 3
 end
 
 if file_obj.directory?
-  puts "Passed file is a directory."
+  puts "UNKNOWN - Passed file is a directory."
   exit 3
 elsif !file_obj.exist?
-  puts "Passed file does not exist."
+  puts "UNKNOWN - Passed file does not exist."
   exit 3
 end
 
@@ -225,7 +288,7 @@ if options.delay
   sleep options.delay
 end
 
-ret_val, service_status, service_description = check_service(options, data)
+ret_val, service_status, service_description = get_status(options, data)
 
 puts "#{service_status} - #{service_description} | 'output'=#{data};#{options.warning[:string_orig]};#{options.critical[:string_orig]}"
 

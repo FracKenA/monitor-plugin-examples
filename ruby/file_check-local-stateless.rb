@@ -200,8 +200,22 @@ def get_status(options, data)
 
   if options.critical[:check] == true
     if options.critical[:inclusive] == false
-      if data < options.critical[:range_start] ||
-          data > options.critical[:range_end]
+      if options.critical[:range_end] == nil
+        if data < options.critical[:range_start]
+          ret_val = 2
+          status = "CRITICAL"
+          description = "Service is in a critical state."
+          return ret_val, status, description
+        end
+      elsif options.critical[:range_start] == nil
+        if data < options.critical[:range_end]
+          ret_val = 2
+          status = "CRITICAL"
+          description = "Service is in a critical state."
+          return ret_val, status, description
+        end
+      elsif data < options.critical[:range_start] ||
+              data > options.critical[:range_end]
         ret_val = 2
         status = "CRITICAL"
         description = "Service is in a critical state."
@@ -220,8 +234,22 @@ def get_status(options, data)
 
   if options.warning[:check] == true
     if options.warning[:inclusive] == false
-      if data < options.warning[:range_start] ||
-          data > options.warning[:range_end]
+      if options.warning[:range_end] == nil
+        if data < options.warning[:range_start]
+          ret_val = 1
+          status = "WARNING"
+          description = "Service is in a warning state."
+          return ret_val, status, description
+        end
+      elsif options.warning[:range_start] == nil
+        if data > options.warning[:range_end]
+          ret_val = 1
+          status = "WARNING"
+          description = "Service is in a warning state."
+          return ret_val, status, description
+        end
+      elsif data < options.warning[:range_start] ||
+              data > options.warning[:range_end]
         ret_val = 1
         status = "WARNING"
         description = "Service is in a warning state."
@@ -237,6 +265,7 @@ def get_status(options, data)
       end
     end
   end
+
 
   return ret_val, status, description
 end

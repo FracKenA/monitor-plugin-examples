@@ -24,24 +24,23 @@ require 'optparse'
 require 'pp'
 require 'pathname'
 
+# Gems
+require 'rubygems'
+require 'net/ssh'
+
 class OptParsing
   Version = '0.0.1'
 
-  def self.warning(arg)
-    warning = arg
-  end
-
-  def self.critical(arg)
-    critical = arg
-  end
-
-  def self.filepath(arg)
-    filepath = arg
-  end
-
-  def self.timeout(arg)
-    timeout = arg
-  end
+  @warning = nil
+  @critical = nil
+  @filepath = nil
+  @timeout = nil
+  @hostname = nil
+  @username = nil
+  @password = nil
+  @hostname = nil
+  @identity = nil
+  @port = nil
 
   class ScriptOptions
     attr_accessor :verbose,
@@ -51,7 +50,12 @@ class OptParsing
                   :warning,
                   :critical,
                   :filepath,
-                  :timeout
+                  :timeout,
+                  :hostname,
+                  :username,
+                  :password,
+                  :identity,
+                  :port
 
     def initialize
       self.verbose = false
@@ -63,6 +67,7 @@ class OptParsing
       self.critical = Hash.new
       self.critical[:check] = false
       self.critical[:inclusive] = false
+      self.port = 22
     end
 
     def define_options(parser)
@@ -76,6 +81,11 @@ class OptParsing
       threshold_critical(parser)
       set_filepath(parser)
       set_timeout(parser)
+      set_hostname(parser)
+      set_username(parser)
+      set_password(parser)
+      set_identity(parser)
+      set_port(parser)
 
       parser.separator "Common options:"
       parser.on_tail("-h", "--help", "Show usage information.") do
@@ -108,7 +118,7 @@ class OptParsing
     end
 
     def threshold_warning(parser)
-      parser.on("-w", "--warning WARN", String, "Warning thresholds.") do |w|
+      parser.on("-w RANGE", "--warning RANGE", String, "Warning thresholds.") do |w|
         self.warning[:string_orig] = w
 
         if w.include? '@'
@@ -138,7 +148,7 @@ class OptParsing
     end
 
     def threshold_critical(parser)
-      parser.on("-c", "--critical CRIT", String, "Critical thresholds.") do |c|
+      parser.on("-c RANGE", "--critical RANGE", String, "Critical thresholds.") do |c|
         self.critical[:string_orig] = c
 
         if c.include? '@'
@@ -168,9 +178,39 @@ class OptParsing
     end
 
     def set_filepath(parser)
-      parser.on("-f", "--filepath FN", String, "Path to file.") do |f|
+      parser.on("-f FN", "--filepath FN", String, "Path to file.") do |f|
         #TODO: Make mandatory
         self.filepath = File.absolute_path(f)
+      end
+    end
+
+    def set_hostname(parser)
+      parser.on("-h HOST", "--hostname HOST", String, "Hostname of target.") do |h|
+        self.hostname = h
+      end
+    end
+
+    def set_username(parser)
+      parser.on("-u USER", "--username USER", String, "Username on target.") do |u|
+        self.username = u
+      end
+    end
+
+    def set_password(parser)
+      parser.on("-P PASS", "--password PASS", String, "Password on target.") do |p|
+        self.password = p
+      end
+    end
+
+    def set_identity(parser)
+      parser.on("-i KEY", "--identity KEY", String, "SSH Key for target.") do |i|
+        self.identity = i
+      end
+    end
+
+    def set_port(parser)
+      parser.on("-p PORT", "--port PORT", String, "SSH Port.") do |p|
+        self.port = p
       end
     end
   end

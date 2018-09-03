@@ -35,9 +35,9 @@ class OptParsing
   @critical = nil
   @filepath = nil
   @timeout = nil
-  @uri = nil
+  @host = nil
   @username = nil
-  @password = nil
+  @passphrase = nil
   @identity = nil
   @port = nil
 
@@ -50,9 +50,9 @@ class OptParsing
                   :critical,
                   :filepath,
                   :timeout,
-                  :uri,
+                  :host,
                   :username,
-                  :password,
+                  :passphrase,
                   :identity,
                   :port
 
@@ -67,6 +67,7 @@ class OptParsing
       self.critical[:check] = false
       self.critical[:inclusive] = false
       self.port = 22
+      self.passphrase = nil
     end
 
     def define_options(parser)
@@ -80,9 +81,9 @@ class OptParsing
       threshold_critical(parser)
       set_filepath(parser)
       set_timeout(parser)
-      set_uri(parser)
+      set_host(parser)
       set_username(parser)
-      set_password(parser)
+      set_passphrase(parser)
       set_identity(parser)
       set_port(parser)
 
@@ -184,9 +185,9 @@ class OptParsing
       end
     end
 
-    def set_uri(parser)
+    def set_host(parser)
       parser.on("-u URI", "--uri URI", String, "Hostname of target.") do |u|
-        self.uri = u
+        self.host = u
       end
     end
 
@@ -196,9 +197,9 @@ class OptParsing
       end
     end
 
-    def set_password(parser)
+    def set_passphrase(parser)
       parser.on("-a PASS", "--authentication PASS", String, "Password on target.") do |p|
-        self.password = p
+        self.passphrase = p
       end
     end
 
@@ -320,10 +321,10 @@ if options.verbose
   puts "Critical thresholds: #{options.critical}"
   puts "Path to file: #{options.filepath}"
   puts "Timeout: #{options.timeout}"
-  puts "URI: #{options.uri}"
+  puts "Hostname: #{options.host}"
   puts "Port: #{options.port}"
   puts "Username: #{options.username}"
-  puts "Password: #{options.password}"
+  puts "Passphrase #{options.passphrase}"
   puts "SSH Identity: #{options.identity}"
   puts ''
   pp options
@@ -335,41 +336,35 @@ if options.warning[:check] == false && options.critical[:check] == false
   exit 3
 end
 
-begin
-  file_obj = Pathname.new(options.filepath)
-rescue TypeError => error
-  puts "UNKNOWN - #{error}"
-  exit 3
-end
-
-if file_obj.directory?
-  puts "UNKNOWN - Passed file is a directory."
-  exit 3
-elsif !file_obj.exist?
-  puts "UNKNOWN - Passed file does not exist."
-  exit 3
-end
-
-results = nil
-
-Net::SSH.start(options.uri, options.username, :port => options.port) do |ssh|
-  if options.verbose
-    puts "Trying to contact the server."
-  end
-  results = ssh.exec!("cat #{options.filepath}")
-end
-
-data = results.to_i
-
-if options.verbose
-  puts "Data from file: #{data}"
-end
-
 if options.delay
   if options.verbose
     puts "Delaying for #{options.delay} seconds..."
   end
   sleep options.delay
+end
+
+data = nil
+
+Net::SSH.start(options.host, options.username,
+              :port => options.port,
+              :timeout => options.timeout,
+              :keys => [options.identity],
+              :passphrase => options.passphrase,
+              :host_key => "ssh-ed25519",
+              :keys_only => true,
+              :non_interactive => true,
+              :compression => true,
+              :config => false
+              ) do |ssh|
+  if options.verbose
+    puts "Trying to contact the server."
+  end
+  results = ssh.exec!("cat #{options.filepath}")
+  data = results.to_i
+end
+
+if options.verbose
+  puts "Data from file: #{data}"
 end
 
 ret_val, service_status, service_description = get_status(options, data)

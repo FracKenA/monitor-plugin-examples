@@ -35,10 +35,9 @@ class OptParsing
   @critical = nil
   @filepath = nil
   @timeout = nil
-  @hostname = nil
+  @uri = nil
   @username = nil
   @password = nil
-  @hostname = nil
   @identity = nil
   @port = nil
 
@@ -51,7 +50,7 @@ class OptParsing
                   :critical,
                   :filepath,
                   :timeout,
-                  :hostname,
+                  :uri,
                   :username,
                   :password,
                   :identity,
@@ -81,7 +80,7 @@ class OptParsing
       threshold_critical(parser)
       set_filepath(parser)
       set_timeout(parser)
-      set_hostname(parser)
+      set_uri(parser)
       set_username(parser)
       set_password(parser)
       set_identity(parser)
@@ -180,24 +179,25 @@ class OptParsing
     def set_filepath(parser)
       parser.on("-f FN", "--filepath FN", String, "Path to file.") do |f|
         #TODO: Make mandatory
-        self.filepath = File.absolute_path(f)
+        #self.filepath = File.absolute_path(f)
+        self.filepath = f
       end
     end
 
-    def set_hostname(parser)
-      parser.on("-h HOST", "--hostname HOST", String, "Hostname of target.") do |h|
-        self.hostname = h
+    def set_uri(parser)
+      parser.on("-u URI", "--uri URI", String, "Hostname of target.") do |u|
+        self.uri = u
       end
     end
 
     def set_username(parser)
-      parser.on("-u USER", "--username USER", String, "Username on target.") do |u|
+      parser.on("-l USER", "--logname USER", String, "Username on target.") do |u|
         self.username = u
       end
     end
 
     def set_password(parser)
-      parser.on("-P PASS", "--password PASS", String, "Password on target.") do |p|
+      parser.on("-a PASS", "--authentication PASS", String, "Password on target.") do |p|
         self.password = p
       end
     end
@@ -319,6 +319,12 @@ if options.verbose
   puts "Warning thresholds: #{options.warning}"
   puts "Critical thresholds: #{options.critical}"
   puts "Path to file: #{options.filepath}"
+  puts "Timeout: #{options.timeout}"
+  puts "URI: #{options.uri}"
+  puts "Port: #{options.port}"
+  puts "Username: #{options.username}"
+  puts "Password: #{options.password}"
+  puts "SSH Identity: #{options.identity}"
   puts ''
   pp options
   puts "ARGV dump: #{ARGV}", ''
@@ -344,15 +350,25 @@ elsif !file_obj.exist?
   exit 3
 end
 
-data = file_obj.read
-data = data.to_i
+results = nil
+
+Net::SSH.start(options.uri, options.username, :port => options.port) do |ssh|
+  if options.verbose
+    puts "Trying to contact the server."
+  end
+  results = ssh.exec!("cat #{options.filepath}")
+end
+
+data = results.to_i
 
 if options.verbose
   puts "Data from file: #{data}"
 end
 
 if options.delay
-  puts "Delaying for #{options.delay} seconds..."
+  if options.verbose
+    puts "Delaying for #{options.delay} seconds..."
+  end
   sleep options.delay
 end
 

@@ -21,27 +21,23 @@
 
 # Standard libs
 require 'optparse'
+require 'optparse/uri'
 require 'pp'
 require 'pathname'
+require 'json'
+require 'net/http'
 
 class OptParsing
   Version = '0.0.1'
 
-  def self.warning(arg)
-    warning = arg
-  end
-
-  def self.critical(arg)
-    critical = arg
-  end
-
-  def self.filepath(arg)
-    filepath = arg
-  end
-
-  def self.timeout(arg)
-    timeout = arg
-  end
+  @warning = nil
+  @critical = nil
+  @filepath = nil
+  @timeout = nil
+  @account = nil
+  @password = nil
+  @host = nil
+  @check_ssl = nil
 
   class ScriptOptions
     attr_accessor :verbose,
@@ -51,7 +47,11 @@ class OptParsing
                   :warning,
                   :critical,
                   :filepath,
-                  :timeout
+                  :timeout,
+                  :account,
+                  :password,
+                  :host,
+                  :check_ssl
 
     def initialize
       self.verbose = false
@@ -63,6 +63,8 @@ class OptParsing
       self.critical = Hash.new
       self.critical[:check] = false
       self.critical[:inclusive] = false
+      self.host = 'localhost'
+      self.check_ssl = true
     end
 
     def define_options(parser)
@@ -76,6 +78,10 @@ class OptParsing
       threshold_critical(parser)
       set_filepath(parser)
       set_timeout(parser)
+      set_account(parser)
+      set_password(parser)
+      set_host(parser)
+      ssl_disable(parser)
 
       parser.separator "Common options:"
       parser.on_tail("-h", "--help", "Show usage information.") do
@@ -171,6 +177,30 @@ class OptParsing
       parser.on("-f", "--filepath FN", String, "Path to file.") do |f|
         #TODO: Make mandatory
         self.filepath = File.absolute_path(f)
+      end
+    end
+
+    def set_account(parser)
+      parser.on("-l ACCOUNT", "--logname ACCOUNT", String, "Account name.") do |a|
+        self.account = a
+      end
+    end
+
+    def set_password(parser)
+      parser.on("-a PASS", "--authentication PASS", String, "Account password.") do |p|
+        self.password = p
+      end
+    end
+
+    def set_host(parser)
+      parser.on("-u [HOST]", "--url [HOST]", URI, "Sets the hostname.") do |h|
+        self.host = h
+      end
+    end
+
+    def ssl_disable(parser)
+      parser.on("--no-ssl", "Disables SSL verification.") do
+        self.check_ssl = false
       end
     end
   end
@@ -279,6 +309,10 @@ if options.verbose
   puts "Warning thresholds: #{options.warning}"
   puts "Critical thresholds: #{options.critical}"
   puts "Path to file: #{options.filepath}"
+  puts "Account name: #{options.account}"
+  puts "Password: #{options.password}"
+  puts "URL: #{options.host}"
+  puts "SSL verification: #{options.check_ssl}"
   puts ''
   pp options
   puts "ARGV dump: #{ARGV}", ''

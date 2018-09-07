@@ -25,7 +25,11 @@ require 'optparse/uri'
 require 'pp'
 require 'pathname'
 require 'json'
+require 'uri'
 require 'net/http'
+require 'openssl'
+require 'json'
+require 'resolv-replace'
 
 class OptParsing
   Version = '0.0.1'
@@ -38,6 +42,7 @@ class OptParsing
   @password = nil
   @host = nil
   @check_ssl = nil
+  @target = nil
 
   class ScriptOptions
     attr_accessor :verbose,
@@ -51,7 +56,8 @@ class OptParsing
                   :account,
                   :password,
                   :host,
-                  :check_ssl
+                  :check_ssl,
+                  :target
 
     def initialize
       self.verbose = false
@@ -65,6 +71,8 @@ class OptParsing
       self.critical[:inclusive] = false
       self.host = 'localhost'
       self.check_ssl = true
+      self.target = Hash.new
+      self.target[:service] = false
     end
 
     def define_options(parser)
@@ -82,6 +90,8 @@ class OptParsing
       set_password(parser)
       set_host(parser)
       ssl_disable(parser)
+      set_mon_hostname(parser)
+      set_mon_servicename(parser)
 
       parser.separator "Common options:"
       parser.on_tail("-h", "--help", "Show usage information.") do
@@ -182,13 +192,13 @@ class OptParsing
 
     def set_account(parser)
       parser.on("-l ACCOUNT", "--logname ACCOUNT", String, "Account name.") do |a|
-        self.account = a
+        self.target[:account] = a
       end
     end
 
     def set_password(parser)
       parser.on("-a PASS", "--authentication PASS", String, "Account password.") do |p|
-        self.password = p
+        self.target[:password] = p
       end
     end
 
@@ -201,6 +211,19 @@ class OptParsing
     def ssl_disable(parser)
       parser.on("--no-ssl", "Disables SSL verification.") do
         self.check_ssl = false
+      end
+    end
+
+    def set_mon_hostname(parser)
+      parser.on('-n NAME', '--host-name NAME', String, "Sets the name of the target host to update in OP5 Monitor.") do |mh|
+        self.target[:hostname] = mh
+      end
+    end
+
+    def set_mon_servicename(parser)
+      parser.on('-s SVC', '--service-name SVC', String, "Sets the name of the target service to update in OP5 Monitor.") do |ms|
+        self.target[:service] = true
+        self.target[:servicename] = ms
       end
     end
   end
@@ -299,6 +322,43 @@ def get_status(options, data)
   return ret_val, status, description
 end
 
+def json_packer(target, ret_val, description)
+  json_payload = Hash.new
+
+  json_payload[:host_name] = target[:hostname]
+
+  if target[:service]
+    json_payload[:service_description] = target[:servicename]
+  end
+
+  json_payload[:status_code] = ret_val
+  json_payload[:plugin_output] = description
+
+  return json_payload
+end
+
+def http_post(endpoint, target, check_ssl, json_payload)
+  if check_ssl
+    verify = 1
+  else
+    verify = 0
+  end
+
+  url = URI(endpoint)
+  request = Net::HTTP::Post.new(url)
+  request.basic_auth(target[:account], target[:password])
+  request["content-type"] = 'application/json'
+  request.body = json_payload
+
+  response = Net::HTTP.start(url.host, url.port,
+                            :use_ssl => true,
+                            :verify_mode => verify) {|http|
+    http.request(request)
+  }
+
+  return response
+end
+
 ret_val = 3
 
 optionparser = OptParsing.new
@@ -313,6 +373,7 @@ if options.verbose
   puts "Password: #{options.password}"
   puts "URL: #{options.host}"
   puts "SSL verification: #{options.check_ssl}"
+  puts "Target dump: #{options.target}"
   puts ''
   pp options
   puts "ARGV dump: #{ARGV}", ''
@@ -352,6 +413,31 @@ end
 
 ret_val, service_status, service_description = get_status(options, data)
 
-puts "#{service_status} - #{service_description} | 'output'=#{data};#{options.warning[:string_orig]};#{options.critical[:string_orig]}"
+output = "#{service_description} | 'output'=#{data};#{options.warning[:string_orig]};#{options.critical[:string_orig]}"
+
+json_data = json_packer(options.target, ret_val, output)
+
+if options.verbose
+  puts json_data
+end
+
+if options.target[:service]
+  endpoint = "#{options.host}/api/command/PROCESS_SERVICE_CHECK_RESULT"
+else
+  endpoint = "#{options.host}/api/command/PROCESS_HOST_CHECK_RESULT"
+end
+
+if options.verbose
+  puts endpoint
+end
+
+http_response = http_post(endpoint,
+                          options.target,
+                          options.check_ssl,
+                          json_data.to_json)
+
+puts http_response.read_body
+
+puts "#{service_status} - #{output}"
 
 exit ret_val

@@ -20,22 +20,40 @@ package main
 //      LICENSE: MIT
 //===============================================================================
 
-import "fmt"
-import "flag"
+import (
+	"bytes"
+	"flag"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+)
 
+//Options
 var verbose bool
-var delay int
+var delay time.Duration
 var warning string
 var critical string
 var filepath string
 var timeout int
 
+//Vars
+type ThresholdData struct {
+	Check          bool
+	Inclusive      bool
+	RangeStartOpen bool
+	RangeStart     int
+	RangeEnd       int
+}
+
 func init() {
 	flag.BoolVar(&verbose, "v", false, "Sets how chatty the program is.")
 	flag.BoolVar(&verbose, "verbose", false, "Sets how chatty the program is. (long form)")
 
-	flag.IntVar(&delay, "d", 0, "Delays the execution of the check by X seconds.")
-	flag.IntVar(&delay, "delay", 0, "Delays the execution of the check by X seconds. (long form)")
+	flag.DurationVar(&delay, "d", 0, "Delays the execution of the check by X seconds.")
+	flag.DurationVar(&delay, "delay", 0, "Delays the execution of the check by X seconds. (long form)")
 
 	flag.StringVar(&warning, "w", "", "Warning thresholds.")
 	flag.StringVar(&warning, "warning", "", "Warning thresholds. (long form)")
@@ -53,21 +71,114 @@ func init() {
 func main() {
 	flag.Parse()
 
+	var warnData ThresholdData
+	var critData ThresholdData
+
 	if filepath == "" {
-		fmt.Println("File path needs to be specified.")
+		fmt.Println("UNKNOWN - File path needs to be specified.")
+		os.Exit(3)
 	} else if verbose {
 		fmt.Printf("File path: %s\n", filepath)
 	}
 
 	if warning == "" && critical == "" {
-		fmt.Println("Warning or Critical threshold needs to be defined.")
-	} else if verbose {
+		fmt.Println("UNKNOWN - Warning or Critical threshold needs to be defined.")
+		os.Exit(3)
+	} else {
+		//Parseing Warning threshold.
 		if warning != "" {
-			fmt.Printf("Warning threshold: %s\n", warning)
+			if verbose {
+				fmt.Printf("Warning threshold: %s\n", warning)
+			}
+			//Parsing logic here.
+		} else {
+			warnData.Check = false
 		}
 
+		//Parsing Critical threshold.
 		if critical != "" {
-			fmt.Printf("Critical threshold: %s\n", critical)
+			if verbose {
+				fmt.Printf("Critical threshold: %s\n", critical)
+			}
+			//Parsing logic here.
+		} else {
+			critData.Check = false
 		}
 	}
+
+	if verbose {
+		fmt.Printf("Exec delay: %d\n", delay)
+		fmt.Printf("Timeout: %d\n", timeout)
+	}
+
+	// Reading the file contents into memory.
+	dataRaw, err := ioutil.ReadFile(filepath)
+	if err != nil {
+		fmt.Printf("UNKNOWN - %s\n", err)
+		os.Exit(3)
+	}
+
+	// Removing whitespace and converting the []byte slice to a string.
+	//data := string(bytes.TrimSpace(dataRaw))
+
+	data, err := strconv.Atoi(string(bytes.TrimSpace(dataRaw)))
+	if err != nil {
+		fmt.Printf("UNKNOW - %s\n", err)
+		os.Exit(3)
+	}
+
+	if verbose {
+		fmt.Printf("Data from file: %d\n", data)
+	}
+
+	if delay != 0 {
+		if verbose {
+			fmt.Printf("Delaying execution for %d seconds...", delay)
+		}
+		time.Sleep(delay * time.Second)
+		if verbose {
+			fmt.Printf("\tDone\n")
+		}
+	}
+
+	//retVal, serviceStatus, serviceDescription := getStatus(data)
+
+}
+
+func parseThreshold(dataStruct ThresholdData, dataRaw string) {
+	dataStruct.Check = true
+	symbolAt := false
+	symbolTilde := false
+
+	if strings.Contains(dataRaw, ":") {
+		dataSplit := strings.Split(dataRaw, ":")
+	} else {
+		//Add regex to check for any characters besides numbers.
+		dataStruct.Inclusive = false
+		dataStruct.RangeStartOpen = false
+		dataStruct.RangeStart = 0
+		dataStruct.RangeEnd, err = strconv.Atoi(dataRaw)
+
+		if err != nil {
+			fmt.Printf("UNKNOW - %s\n", err)
+			os.Exit(3)
+		}
+
+	}
+
+	//if strings.ContainsAny(dataRaw, "@~") {
+	//	if strings.Contains(dataRaw, "@") {
+	//		dataStruct.Inclusive = true
+	//		symbolAt = true
+	//	}
+
+	//	if strings.Contains(dataRaw, "~") {
+	//		dataStruct.RangeStartOpen = true
+	//		dataStruct.RangeStart = 0
+	//		symbolTilde = true
+	//	}
+
+	//	if symbolAt && symbolTilde {
+	//	}
+	//}
 }
